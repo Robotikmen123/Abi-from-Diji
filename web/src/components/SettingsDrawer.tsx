@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { voiceEngine, type VoiceOption } from '../audio/voiceEngine';
+import { desktopBridge } from '../lib/desktop';
 import { store, useAbiState } from '../state/store';
 import type { PersonaIntensity, ProactiveLevel, Settings } from '../state/settings';
 import { CloseIcon } from './Icons';
@@ -261,6 +262,35 @@ export function SettingsDrawer() {
                 onChange={(value) => update({ reduceMotion: value })}
               />
             </Section>
+
+            {state.desktop && (
+              <Section title="Masaüstü">
+                <Choice
+                  label="Pencere modu"
+                  value={settings.windowMode}
+                  options={[
+                    ['window', 'Pencere'],
+                    ['overlay', 'Overlay'],
+                    ['mini', 'Mini'],
+                  ]}
+                  onChange={(value) => {
+                    update({ windowMode: value });
+                    // Pencere yeniden kuruldugu icin yanit gelmeden sayfa kapanir.
+                    desktopBridge()?.setMode(value).catch(() => undefined);
+                  }}
+                />
+                <Toggle
+                  label="Tıklamaları geçir"
+                  hint="Overlay modda fare tıklamaları altındaki pencereye gider."
+                  value={settings.clickThrough}
+                  onChange={(value) => {
+                    update({ clickThrough: value });
+                    desktopBridge()?.setClickThrough(value).catch(() => undefined);
+                  }}
+                />
+                <p className="field__hint">Göster/gizle: Ctrl+Shift+A · Overlay: O</p>
+              </Section>
+            )}
 
             <Section title="Gelişmiş">
               <Toggle

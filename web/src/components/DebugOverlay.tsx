@@ -17,6 +17,7 @@ export function DebugOverlay() {
       <Row label="Duygu" value={state.emotion} />
       <Row label="VAD" value={d.vad ? 'konuşma' : 'sessiz'} />
       <Row label="Sağlayıcı" value={d.provider} />
+      <Row label="Görme" value={d.vision} />
       <Row label="Hafıza" value={String(state.history.length)} />
       {state.interim && <Row label="Tanıma" value={state.interim} />}
     </div>

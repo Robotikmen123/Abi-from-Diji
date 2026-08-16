@@ -14,7 +14,13 @@ export function MainStage() {
 
   return (
     <main
-      className={`main-stage${state.settings.gameMode ? ' main-stage--game' : ''}`}
+      className={[
+        'main-stage',
+        state.settings.gameMode ? 'main-stage--game' : '',
+        state.desktop && state.settings.windowMode === 'mini' ? 'main-stage--mini' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       data-state={state.ui}
     >
       <div className="avatar-stage">

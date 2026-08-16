@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { voiceEngine } from './audio/voiceEngine';
+import { CameraPreview } from './components/CameraPreview';
 import { DebugOverlay } from './components/DebugOverlay';
 import { HistoryDrawer } from './components/HistoryDrawer';
 import { MainStage } from './components/MainStage';
@@ -9,7 +10,9 @@ import { PrivacyIndicators } from './components/PrivacyIndicators';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { TextFallbackInput } from './components/TextFallbackInput';
 import { ToastLayer } from './components/ToastLayer';
+import { VisionCue } from './components/VisionCue';
 import { TopControls } from './components/TopControls';
+import { desktopBridge } from './lib/desktop';
 import { runtime } from './lib/runtime';
 import { store, useAbiState } from './state/store';
 
@@ -29,6 +32,16 @@ export default function App() {
     voiceEngine.settings.rateScale = settings.speechRate;
     voiceEngine.settings.pitchScale = settings.speechPitch;
     voiceEngine.settings.volume = settings.volume;
+  }, []);
+
+  // Masaustu kabugu: kayitli pencere modunu geri yukle.
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (!bridge) return;
+    store.set({ desktop: true });
+    const { windowMode, clickThrough } = store.getState().settings;
+    bridge.setMode(windowMode).catch(() => undefined);
+    bridge.setClickThrough(clickThrough).catch(() => undefined);
   }, []);
 
   // Tarayici ses ve mikrofon icin kullanici hareketi bekliyor.
@@ -75,6 +88,15 @@ export default function App() {
         case 'd':
           store.patchSettings({ devMode: !store.getState().settings.devMode });
           break;
+        case 'o': {
+          // Masaustunde pencere <-> overlay arasinda hizli gecis.
+          const bridge = desktopBridge();
+          if (!bridge) break;
+          const next = store.getState().settings.windowMode === 'overlay' ? 'window' : 'overlay';
+          store.patchSettings({ windowMode: next });
+          bridge.setMode(next).catch(() => undefined);
+          break;
+        }
         case 'escape':
           store.set({ settingsOpen: false, historyOpen: false });
           break;
@@ -112,6 +134,7 @@ export default function App() {
       className={[
         'app-shell',
         state.settings.cinematicMode ? 'app-shell--cinematic' : '',
+        state.desktop ? `app-shell--${state.settings.windowMode}` : '',
         state.fullscreen ? 'app-shell--fullscreen' : '',
       ]
         .filter(Boolean)
@@ -120,6 +143,8 @@ export default function App() {
       <TopControls onToggleFullscreen={toggleFullscreen} />
       <MissionLabel />
       <MainStage />
+      <VisionCue />
+      <CameraPreview />
       <PrivacyIndicators />
       <TextFallbackInput />
       <SettingsDrawer />

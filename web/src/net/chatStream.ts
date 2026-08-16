@@ -5,13 +5,26 @@ export interface ChatTurn {
   text: string;
 }
 
+export interface MissionSignal {
+  kind: 'start' | 'step' | 'done';
+  title?: string;
+  total?: number;
+}
+
 export interface ChatStreamHandlers {
   onStart?: (info: { provider: string; character: string }) => void;
   onLatency?: (firstTokenMs: number) => void;
   onEmotion?: (emotion: Emotion) => void;
   onPhrase?: (text: string, index: number) => void;
+  onMission?: (signal: MissionSignal) => void;
   onDone?: (info: { totalMs: number; phrases: number }) => void;
   onError?: (message: string) => void;
+}
+
+export interface VisionFrame {
+  source: 'camera' | 'screen';
+  mime: string;
+  data: string;
 }
 
 export interface ChatRequest {
@@ -20,6 +33,7 @@ export interface ChatRequest {
   intensity: 'calm' | 'normal' | 'abi';
   userName?: string | null;
   trigger?: string | null;
+  frames?: VisionFrame[];
 }
 
 /**
@@ -99,6 +113,13 @@ function dispatch(block: string, handlers: ChatStreamHandlers): void {
       break;
     case 'phrase':
       handlers.onPhrase?.(String(parsed.text ?? ''), Number(parsed.index ?? 0));
+      break;
+    case 'mission':
+      handlers.onMission?.({
+        kind: String(parsed.kind ?? 'step') as MissionSignal['kind'],
+        title: parsed.title ? String(parsed.title) : undefined,
+        total: parsed.total ? Number(parsed.total) : undefined,
+      });
       break;
     case 'done':
       handlers.onDone?.({

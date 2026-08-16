@@ -1,3 +1,25 @@
+/* Inter, yerel alt kumeler. Turkce icin latin + latin-ext yeterli. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/inter-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* Tum degerler tokens.ts'ten uretilen degiskenlerden gelir. */
 
 *,
@@ -276,6 +298,50 @@ body.hide-controls .text-input {
   height: 16px;
 }
 
+/* ------------------------------------------------------- masaustu modlari */
+
+/* Overlay ve mini modda arka plan saydam: karakter masaustunun uzerinde durur. */
+.app-shell--overlay,
+.app-shell--mini {
+  background: transparent;
+}
+
+.app-shell--overlay .top-bar,
+.app-shell--mini .top-bar {
+  padding-top: var(--space-sm);
+  opacity: 0.35;
+}
+
+.app-shell--mini .top-bar__actions .icon-button:not(:last-child) {
+  display: none;
+}
+
+/* Mini mod: sadece emblem ve kucuk bir alt yazi. */
+.main-stage--mini {
+  grid-template-rows: 14% 58% 28%;
+}
+
+.main-stage--mini .subtitle {
+  --subtitle-size: 13px;
+  max-width: 92%;
+  line-height: 1.3;
+}
+
+.main-stage--mini .status {
+  font-size: 10px;
+}
+
+.main-stage--mini .waveform {
+  width: 90px;
+  height: 14px;
+}
+
+.app-shell--mini .privacy,
+.app-shell--mini .text-input,
+.app-shell--mini .toast-layer {
+  display: none;
+}
+
 /* ------------------------------------------------------------------ gorev */
 
 .mission {
@@ -303,6 +369,68 @@ body.hide-controls .text-input {
   letter-spacing: 0.1em;
   color: var(--color-text-muted);
   opacity: 0.6;
+}
+
+.mission__bar {
+  display: block;
+  width: 120px;
+  height: 1.5px;
+  margin-top: 2px;
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.mission__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-glow);
+  transform-origin: left center;
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+/* Tamamlanma: kisa bir isik gecisi, sonra etiket soner. */
+.mission--done .mission__title,
+.mission--done .mission__progress {
+  color: var(--color-glow);
+  opacity: 0.9;
+  transition: color var(--dur-base) var(--ease-out);
+}
+
+.mission--done .mission__bar-fill {
+  box-shadow: 0 0 8px var(--color-glow);
+}
+
+/* ------------------------------------------------------------------ gorme */
+
+.vision-cue {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: var(--z-status);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  /* Emblemin sag ust yaninda; sahneyi kalabaliklastirmaz. */
+  transform: translate(96px, -104px);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-glow);
+  pointer-events: none;
+}
+
+.camera-preview {
+  position: absolute;
+  right: var(--space-xl);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+  z-index: var(--z-controls);
+  width: 168px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  /* Ayna: kullanici kendini dogru gorsun. */
+  transform: scaleX(-1);
+  object-fit: cover;
 }
 
 /* ------------------------------------------------------------------ gizlilik */

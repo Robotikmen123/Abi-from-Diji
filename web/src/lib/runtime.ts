@@ -2,8 +2,10 @@ import { micEngine } from '../audio/micEngine';
 import { speechInput } from '../audio/speechRecognition';
 import { voiceEngine } from '../audio/voiceEngine';
 import { fetchHealth, streamChat, type ChatTurn } from '../net/chatStream';
+import { captureEngine, detectVisionIntent, type VisionSource } from '../vision/captureEngine';
 import { store } from '../state/store';
 import type { Emotion, UiState } from '../state/stateConfig';
+import type { Mission } from '../state/store';
 
 /** Oturum acilisinda soylenebilecek replikler. Bazen hic konusmaz. */
 const OPENERS = ['Hmm?', 'Buradayım.', 'Ne var?', 'Gel bakalım.', 'Söyle.'];
@@ -46,6 +48,11 @@ class AbiRuntime {
     this.wireMic();
     this.wireStt();
 
+    // Kullanici paylasimi sistem arayuzunden durdurabilir.
+    captureEngine.onStopped = (source) => {
+      store.set(source === 'camera' ? { cameraOn: false } : { screenOn: false });
+    };
+
     const health = await fetchHealth();
     store.set({ connected: health.ok });
     if (health.llm) store.patchDebug({ provider: health.llm.id });
@@ -66,6 +73,7 @@ class AbiRuntime {
     voiceEngine.stop();
     speechInput.stop();
     micEngine.stop();
+    captureEngine.stopAll();
     window.clearInterval(this.idleTimer);
   }
 
@@ -195,7 +203,40 @@ class AbiRuntime {
       return;
     }
 
-    this.send(clean);
+    void this.sendWithVision(clean);
+  }
+
+  /**
+   * "Abi şuna bak" gibi bir ifade gecerse konusmadan once tek kare alinir.
+   * Kamera/ekran kapaliysa once acilir; kullanici reddederse karakter
+   * yine de cevap verir, sadece goremedigini soyler.
+   */
+  private async sendWithVision(message: string): Promise<void> {
+    const intent = detectVisionIntent(message);
+    if (!intent) {
+      this.send(message);
+      return;
+    }
+
+    const settings = store.getState().settings;
+    if (intent === 'camera' && !settings.cameraEnabled) {
+      store.patchSettings({ cameraEnabled: true });
+    }
+
+    const ready = captureEngine.isActive(intent) || (await captureEngine.start(intent));
+    if (!ready) {
+      store.toast(intent === 'camera' ? 'Kameraya erişemedim.' : 'Ekranı göremiyorum.', 'warn');
+      this.send(message);
+      return;
+    }
+
+    store.set(intent === 'camera' ? { cameraOn: true } : { screenOn: true });
+    // Ilk kare bazen bos gelir; bir sonraki cizim karesini bekle.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const frame = captureEngine.grab(intent);
+
+    this.send(message, null, frame ? [frame] : []);
+    store.patchDebug({ vision: intent });
   }
 
   /** Yazili giris (ses tanima yoksa veya kullanici tercih ederse). */
@@ -204,10 +245,60 @@ class AbiRuntime {
     if (!clean) return;
     this.lastInteractionAt = Date.now();
     voiceEngine.unlock();
-    this.send(clean);
+    void this.sendWithVision(clean);
   }
 
-  private send(message: string, trigger: string | null = null): void {
+  /** Kamera / ekran paylasimini kullanici acikca actiginda. */
+  async toggleVision(source: VisionSource): Promise<void> {
+    if (captureEngine.isActive(source)) {
+      captureEngine.stop(source);
+      store.set(source === 'camera' ? { cameraOn: false } : { screenOn: false });
+      return;
+    }
+    const ok = await captureEngine.start(source);
+    store.set(source === 'camera' ? { cameraOn: ok } : { screenOn: ok });
+    if (!ok) {
+      store.toast(
+        source === 'camera' ? 'Kameraya erişemedim.' : 'Ekran paylaşımı açılmadı.',
+        'warn',
+      );
+    }
+  }
+
+  /** Gorev isaretleri: baslat / adim ilerlet / bitir. */
+  private applyMission(signal: { kind: string; title?: string; total?: number }): void {
+    const current = store.getState().mission;
+
+    if (signal.kind === 'start') {
+      const mission: Mission = {
+        title: String(signal.title ?? 'Görev'),
+        step: 0,
+        total: Math.max(1, Number(signal.total ?? 1)),
+        done: false,
+      };
+      store.set({ mission, emotion: 'MISSION' });
+      return;
+    }
+    if (!current) return;
+
+    if (signal.kind === 'step') {
+      store.set({ mission: { ...current, step: Math.min(current.total, current.step + 1) } });
+      return;
+    }
+    if (signal.kind === 'done') {
+      store.set({ mission: { ...current, step: current.total, done: true } });
+      // Kisa mikro animasyon sonrasi etiket soner. Konfeti yok.
+      window.setTimeout(() => {
+        if (store.getState().mission?.done) store.set({ mission: null });
+      }, 2600);
+    }
+  }
+
+  private send(
+    message: string,
+    trigger: string | null = null,
+    frames: { source: VisionSource; mime: string; data: string }[] = [],
+  ): void {
     const state = store.getState();
     if (!state.connected) {
       store.toast('Bağlantı yok.', 'warn');
@@ -244,11 +335,13 @@ class AbiRuntime {
         intensity: state.settings.personaIntensity,
         userName: state.settings.memoryEnabled ? state.settings.userName : null,
         trigger,
+        frames,
       },
       {
         onStart: (info) => store.patchDebug({ provider: info.provider }),
         onLatency: (ms) => store.patchDebug({ firstToken: ms }),
         onEmotion: (emotion) => store.set({ emotion }),
+        onMission: (signal) => this.applyMission(signal),
         onPhrase: (text) => {
           this.pendingReply = this.pendingReply ? `${this.pendingReply} ${text}` : text;
           voiceEngine.enqueue(text, store.getState().emotion);

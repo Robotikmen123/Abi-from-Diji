@@ -2,6 +2,9 @@ import { EMOTIONS, type Emotion } from '../providers/types.js';
 
 const EMOTION_TAG = /^\s*\[([A-ZÇĞİÖŞÜ_]+)\]\s*/;
 const MEMORY_MARK = /<<\s*hatirla\s*:\s*([^>]{3,240})>>/gi;
+const MISSION_START = /<<\s*gorev\s*:\s*([^|>]{2,80})(?:\|\s*(\d{1,2}))?\s*>>/gi;
+const MISSION_STEP = /<<\s*gorev-adim\s*>>/gi;
+const MISSION_DONE = /<<\s*gorev-bitti\s*>>/gi;
 
 export interface TagResult {
   emotion: Emotion | null;
@@ -25,6 +28,33 @@ export function extractMemories(text: string): { clean: string; facts: string[] 
     return '';
   });
   return { clean, facts };
+}
+
+export type MissionSignal =
+  | { kind: 'start'; title: string; total: number }
+  | { kind: 'step' }
+  | { kind: 'done' };
+
+/** <<gorev...>> isaretlerini metinden cikarip toplar. */
+export function extractMissions(text: string): { clean: string; signals: MissionSignal[] } {
+  const signals: MissionSignal[] = [];
+  let clean = text.replace(MISSION_START, (_all, title: string, total?: string) => {
+    signals.push({
+      kind: 'start',
+      title: title.trim(),
+      total: Math.min(20, Math.max(1, Number(total ?? 1) || 1)),
+    });
+    return '';
+  });
+  clean = clean.replace(MISSION_STEP, () => {
+    signals.push({ kind: 'step' });
+    return '';
+  });
+  clean = clean.replace(MISSION_DONE, () => {
+    signals.push({ kind: 'done' });
+    return '';
+  });
+  return { clean, signals };
 }
 
 /** Seslendirilecek metni temizler: markdown, emoji ve gorsel suslemeler konusulmaz. */

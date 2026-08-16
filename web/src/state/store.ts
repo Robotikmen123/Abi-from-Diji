@@ -19,6 +19,8 @@ export interface Mission {
   title: string;
   step: number;
   total: number;
+  /** Tamamlandi: etiket kisa bir mikro animasyonla soner. */
+  done: boolean;
 }
 
 export interface DebugMetrics {
@@ -30,6 +32,8 @@ export interface DebugMetrics {
   provider: string;
   vad: boolean;
   memoryEvents: number;
+  /** Son gonderilen goruntu kaynagi. */
+  vision: string;
 }
 
 export interface AbiState {
@@ -47,6 +51,8 @@ export interface AbiState {
   settingsOpen: boolean;
   historyOpen: boolean;
   fullscreen: boolean;
+  /** Masaustu kabugunda mi calisiyor? */
+  desktop: boolean;
   booted: boolean;
   toasts: Toast[];
   history: HistoryItem[];
@@ -68,6 +74,7 @@ const initial: AbiState = {
   settingsOpen: false,
   historyOpen: false,
   fullscreen: false,
+  desktop: false,
   booted: false,
   toasts: [],
   history: [],
@@ -81,6 +88,7 @@ const initial: AbiState = {
     provider: '-',
     vad: false,
     memoryEvents: 0,
+    vision: '-',
   },
   settings: DEFAULT_SETTINGS,
 };

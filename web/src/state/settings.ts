@@ -39,6 +39,10 @@ export interface Settings {
   reduceMotion: boolean;
   highContrastSubtitle: boolean;
 
+  // DESKTOP (yalnizca masaustu kabugunda gorunur)
+  windowMode: 'window' | 'overlay' | 'mini';
+  clickThrough: boolean;
+
   // ADVANCED
   devMode: boolean;
   cinematicMode: boolean;
@@ -75,6 +79,9 @@ export const DEFAULT_SETTINGS: Settings = {
   animationIntensity: 1,
   reduceMotion: false,
   highContrastSubtitle: false,
+
+  windowMode: 'window',
+  clickThrough: false,
 
   devMode: false,
   cinematicMode: false,

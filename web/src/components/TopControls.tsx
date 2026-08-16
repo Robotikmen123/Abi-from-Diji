@@ -9,6 +9,7 @@ import {
   HistoryIcon,
   MicIcon,
   MicOffIcon,
+  ScreenIcon,
   SettingsIcon,
 } from './Icons';
 
@@ -41,9 +42,17 @@ export function TopControls({ onToggleFullscreen }: Props) {
         <IconButton
           label={state.cameraOn ? 'Kamerayı kapat' : 'Kamerayı aç'}
           active={state.cameraOn}
-          onClick={() => store.set({ cameraOn: !state.cameraOn })}
+          onClick={() => void runtime.toggleVision('camera')}
         >
           {state.cameraOn ? <CameraIcon /> : <CameraOffIcon />}
+        </IconButton>
+
+        <IconButton
+          label={state.screenOn ? 'Ekran paylaşımını durdur' : 'Ekranı göster'}
+          active={state.screenOn}
+          onClick={() => void runtime.toggleVision('screen')}
+        >
+          <ScreenIcon size={19} />
         </IconButton>
 
         <IconButton

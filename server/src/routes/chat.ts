@@ -4,9 +4,15 @@ import { buildSystemPrompt, type PersonaIntensity } from '../persona/personaProm
 import { activeLlmId, resolveLlm } from '../providers/llm/index.js';
 import { LocalPersonaProvider } from '../providers/llm/localPersona.js';
 import { memory } from '../providers/memory/fileMemory.js';
-import type { ChatTurn, LlmProvider } from '../providers/types.js';
+import type { ChatTurn, LlmProvider, VisionFrame } from '../providers/types.js';
 import { log } from '../util/log.js';
-import { PhraseSplitter, extractEmotion, extractMemories, speakable } from '../util/stream.js';
+import {
+  PhraseSplitter,
+  extractEmotion,
+  extractMemories,
+  extractMissions,
+  speakable,
+} from '../util/stream.js';
 
 interface ChatBody {
   message?: string;
@@ -15,6 +21,8 @@ interface ChatBody {
   userName?: string | null;
   /** Proaktif tetikleyici (sessizlik, gurultu, oyun olayi...) */
   trigger?: string | null;
+  /** Kamera veya ekran kareleri (base64). */
+  frames?: VisionFrame[];
 }
 
 /** Zeka saglayicisi coktugunde karakterin susmamasi icin son care. */
@@ -46,14 +54,21 @@ chatRouter.post('/chat', async (req, res) => {
   const abort = new AbortController();
   res.on('close', () => abort.abort());
 
+  // Karelerin boyutu sinirli: gecikme dogrudan istek govdesine bagli.
+  const frames = (body.frames ?? []).slice(0, 2).filter((f) => f?.data && f.data.length < 3_000_000);
+
   const started = Date.now();
   let firstTokenAt = 0;
   let emitted = 0;
   let emotionSent = false;
 
   const emitPhrase = (phrase: string) => {
-    const { clean, facts } = extractMemories(phrase);
+    const { clean: noMemory, facts } = extractMemories(phrase);
     for (const fact of facts) void memory.remember(fact);
+
+    const { clean, signals } = extractMissions(noMemory);
+    for (const signal of signals) send('mission', signal);
+
     const text = speakable(clean);
     if (!text) return;
     emitted += 1;
@@ -69,6 +84,7 @@ chatRouter.post('/chat', async (req, res) => {
       system,
       history,
       message,
+      frames: provider.vision ? frames : undefined,
       temperature: config.llm.temperature,
       maxTokens: config.llm.maxTokens,
       signal: abort.signal,
@@ -123,7 +139,11 @@ chatRouter.post('/chat', async (req, res) => {
     });
     const history = (body.history ?? []).slice(-12).filter((t) => t.text?.trim());
 
-    send('start', { provider: activeLlmId(), character: config.characterName });
+    send('start', {
+      provider: activeLlmId(),
+      character: config.characterName,
+      vision: Boolean(provider.vision),
+    });
 
     try {
       await run(provider, system, history);

@@ -34,7 +34,9 @@ Tarayıcıdan `http://localhost:5273` adresini aç, mikrofon izni ver ve konuş.
 | Ses tanıma | Web Speech Recognition (tarayıcı) | Ücretsiz, kurulumsuz, düşük gecikme |
 | Seslendirme | Web Speech Synthesis (tarayıcı, Türkçe erkek ses) | Ücretsiz, ilk sese kadar geçen süre sunucu TTS'ten kısa |
 | Karakter | Prosedürel canvas emblemi | Asset yok, her çözünürlükte net, sesle doğrudan sürülüyor |
+| Görme | Gemini çoklu ortam (tek kare JPEG) | Sürekli video yerine "bakınca" kare: hem gecikme hem gizlilik |
 | Hafıza | Dosya tabanlı JSON | Bağımlılıksız, taşınabilir |
+| Masaüstü | Electron kabuğu | Overlay, mini mod, her zaman üstte |
 
 Zekâ sağlayıcısı düşerse (anahtar hatası, kota, ağ) karakter susmaz: sunucu aynı
 istek içinde yerel motora düşer ve cevabı oradan verir.
@@ -66,6 +68,64 @@ belirgin biçimde öne çekiliyor.
 akış sunucu tarafında da iptal edilir ve karakter dinlemeye döner. Ölçülen geçiş
 süresi ~5 ms. Bu davranış STT'ye değil doğrudan mikrofon VAD'ine bağlı; tanıma
 motorunun gecikmesini beklemez.
+
+---
+
+## Görme
+
+ABİ'ye "şuna bak" ya da "ekrana bak" dediğinde konuşmadan önce **tek kare** alınır
+ve soruyla birlikte gönderilir. Sürekli video akmaz: gecikme de gizlilik yüzeyi de
+gereksiz büyümesin.
+
+- Kamera veya ekran kapalıysa o an açılır, izin reddedilirse karakter yine cevap verir.
+- Kare uzun kenarı 768 px'e indirilip JPEG'e çevrilir.
+- Bakarken avatarın yanında minik bir göz/ekran işareti belirir — büyük
+  "ANALYZING CAMERA" yazısı yok.
+- Mikrofon, kamera ve ekran açıkken sol altta küçük göstergeler durur ve gizlenmez.
+- Kamera önizlemesi varsayılan **kapalı**; ana ekranda video karesi karakter hissini bozuyor.
+
+Üst bardaki kamera ve ekran düğmeleriyle elle de açılabilir.
+
+## Görevler
+
+Çok adımlı bir işe girişildiğinde ABİ görev açabilir. Cevabına kullanıcıya
+gösterilmeyen işaretler koyar; sunucu bunları metinden temizleyip ayrı olay olarak
+yollar:
+
+| İşaret | Etki |
+| --- | --- |
+| `<<gorev: TV bağlantısını düzelt \| 3>>` | Görevi başlatır (başlık, toplam adım) |
+| `<<gorev-adim>>` | Bir adım ilerletir |
+| `<<gorev-bitti>>` | Tamamlar |
+
+Ekranda üst ortada küçük bir etiket ve ince bir ilerleme çizgisi görünür. Bitince
+kısa bir ışık geçişiyle söner. Konfeti yok, task manager görünümü yok.
+
+---
+
+## Masaüstü (Electron)
+
+```bash
+npm run desktop        # derle ve başlat
+npm run desktop:dev    # vite dev sunucusuna bağlanarak başlat
+```
+
+Üç pencere modu var; ayarlardan veya kısayolla değişir:
+
+| Mod | Ne |
+| --- | --- |
+| **Pencere** | Normal uygulama penceresi |
+| **Overlay** | Saydam, her zaman üstte, köşede; tıklamalar altındaki pencereye geçirilebilir |
+| **Mini** | 260×300 px yüzen emblem — sadece karakter ve küçük altyazı |
+
+- **Ctrl+Shift+A** göster/gizle (uygulama odakta olmasa da çalışır)
+- **O** pencere ↔ overlay
+- Overlay ve mini modda arka plan saydam: karakter masaüstünün üzerinde durur
+- Mikrofon, kamera ve ekran paylaşımı izinleri kabuk tarafından verilir
+- Uygulama kapanınca sunucu da kapanır
+
+Üretimde arayüz `file://` yerine kendi sunucumuzdan yüklenir; `file://` altında
+varlık yolları ve `localStorage` çalışmıyor.
 
 ---
 
@@ -107,6 +167,8 @@ altyazının görünürlüğünü, kontrollerin opaklığını ve geçiş süres
 | `F` | Tam ekran |
 | `C` | Sinematik mod (tüm kontroller gizlenir) |
 | `D` | Geliştirici katmanı (FPS, gecikmeler, VAD, durum) |
+| `O` | Pencere ↔ overlay (masaüstü) |
+| `Ctrl+Shift+A` | Göster/gizle (masaüstü, global) |
 | `/` | Kompakt yazı girişi |
 | `Esc` | Panelleri kapat |
 
@@ -119,13 +181,16 @@ prompts/abi-system.md      karakter tanımı
 server/                    Express + SSE
   providers/llm/           gemini · ollama · openai · yerel yedek
   providers/memory/        dosya tabanlı hafıza
-  util/stream.ts           duygu etiketi, hafıza işareti, ifade bölücü
+  util/stream.ts           duygu etiketi, hafıza/görev işaretleri, ifade bölücü
 web/
   src/avatar/              emblem çizimi + hareket rig'i
   src/audio/               mikrofon/VAD · ses tanıma · seslendirme · viseme
+  src/vision/              kamera / ekran yakalama + "bak" niyeti
   src/state/               durum tablosu · ayarlar · store
   src/components/          sahne ve paneller
   src/lib/runtime.ts       mikrofon → STT → akış → TTS orkestrasyonu
+  src/lib/desktop.ts       Electron köprüsü (yoksa arayüz değişmez)
+desktop/                   Electron kabuğu: overlay · mini · kısayollar
 ```
 
 Sağlayıcılar arayüz arkasında (`LlmProvider`, `MemoryProvider`, `TtsProvider`);
@@ -168,5 +233,6 @@ npm start           # derlenmiş sunucu
   devreye girer, karakter yine sesli cevap verir.
 - Türkçe erkek ses işletim sistemine bağlı. Sistemde Türkçe ses yoksa ayarlardan
   seçilebilir; hiç ses yoksa karakter sessiz oynatır (altyazı ve animasyon çalışır).
-- Kamera ve ekran görme (`vision`) için arayüz göstergeleri ve durum akışı hazır,
-  görüntü analizi sağlayıcısı henüz bağlı değil.
+- Görme yalnızca Gemini ile çalışır; yerel yedek motor kareleri yok sayar.
+- Overlay modda saydamlık ve tıklama geçirgenliği pencere yöneticisine bağlıdır;
+  Windows ve macOS'ta sorunsuz, bazı Linux masaüstlerinde bileşik yöneticisi gerekir.

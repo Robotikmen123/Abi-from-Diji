@@ -28,10 +28,21 @@ export const EMOTIONS: Emotion[] = [
   'ALERT',
 ];
 
+/** Karaktere gosterilen kare: kamera veya ekran goruntusu. */
+export interface VisionFrame {
+  /** 'camera' | 'screen' */
+  source: 'camera' | 'screen';
+  mime: string;
+  /** base64, veri onegi olmadan */
+  data: string;
+}
+
 export interface LlmRequest {
   system: string;
   history: ChatTurn[];
   message: string;
+  /** Coklu ortam girisi; destekleyen saglayici kullanir, digerleri yok sayar. */
+  frames?: VisionFrame[];
   temperature: number;
   maxTokens: number;
   signal?: AbortSignal;
@@ -40,6 +51,8 @@ export interface LlmRequest {
 export interface LlmProvider {
   readonly id: string;
   readonly label: string;
+  /** Goruntu girisini destekliyor mu? */
+  readonly vision?: boolean;
   /** Streaming token uretimi. */
   stream(req: LlmRequest): AsyncIterable<string>;
   /** Saglik kontrolu; false ise provider secilmez. */

@@ -20,12 +20,25 @@ function modelChain(): string[] {
   return [...new Set(chain.filter(Boolean))];
 }
 
+interface Part {
+  text?: string;
+  inlineData?: { mimeType: string; data: string };
+}
+
 function toContents(req: LlmRequest) {
-  const contents = req.history.map((turn) => ({
+  const contents: { role: string; parts: Part[] }[] = req.history.map((turn) => ({
     role: turn.role === 'user' ? 'user' : 'model',
     parts: [{ text: turn.text }],
   }));
-  contents.push({ role: 'user', parts: [{ text: req.message }] });
+
+  // Goruntuler son kullanici mesajina eklenir: model once bakar, sonra okur.
+  const parts: Part[] = [];
+  for (const frame of req.frames ?? []) {
+    parts.push({ inlineData: { mimeType: frame.mime, data: frame.data } });
+  }
+  parts.push({ text: req.message });
+
+  contents.push({ role: 'user', parts });
   return contents;
 }
 
@@ -36,6 +49,7 @@ function toContents(req: LlmRequest) {
 export class GeminiProvider implements LlmProvider {
   readonly id = 'gemini';
   readonly label = 'Google Gemini';
+  readonly vision = true;
 
   /** Calistigi dogrulanan model; sonraki isteklerde dogrudan kullanilir. */
   private resolvedModel: string | null = null;
