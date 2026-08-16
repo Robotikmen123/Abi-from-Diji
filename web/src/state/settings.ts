@@ -1,8 +1,12 @@
 export type ProactiveLevel = 'quiet' | 'normal' | 'chatty';
 export type PersonaIntensity = 'calm' | 'normal' | 'abi';
 
+export type EnginePreference = 'auto' | 'server' | 'browser';
+
 export interface Settings {
   // VOICE
+  /** Yerel (Piper) ses mi tarayici sesi mi. 'auto': sunucuda varsa yerel. */
+  voiceEngine: EnginePreference;
   voiceId: string | null;
   speechRate: number;
   speechPitch: number;
@@ -11,6 +15,8 @@ export interface Settings {
   streamingTts: boolean;
 
   // MICROPHONE
+  /** Yerel (Whisper) tanima mi tarayici tanimasi mi. */
+  sttEngine: EnginePreference;
   micEnabled: boolean;
   conversationMode: boolean;
   wakeWordEnabled: boolean;
@@ -50,6 +56,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  voiceEngine: 'auto',
   voiceId: null,
   speechRate: 1,
   speechPitch: 1,
@@ -57,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoInterrupt: true,
   streamingTts: true,
 
+  sttEngine: 'auto',
   micEnabled: true,
   conversationMode: true,
   wakeWordEnabled: false,

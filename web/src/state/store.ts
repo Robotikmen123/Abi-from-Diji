@@ -34,6 +34,10 @@ export interface DebugMetrics {
   memoryEvents: number;
   /** Son gonderilen goruntu kaynagi. */
   vision: string;
+  /** Aktif ses motoru */
+  voice: string;
+  /** Aktif tanima motoru */
+  recognizer: string;
 }
 
 export interface AbiState {
@@ -89,6 +93,8 @@ const initial: AbiState = {
     vad: false,
     memoryEvents: 0,
     vision: '-',
+    voice: '-',
+    recognizer: '-',
   },
   settings: DEFAULT_SETTINGS,
 };

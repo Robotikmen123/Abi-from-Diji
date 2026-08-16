@@ -9,6 +9,7 @@ import {
 } from 'electron';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 /**
  * ABI masaustu kabugu.
@@ -152,13 +153,28 @@ function toggleVisibility(): void {
   }
 }
 
+/** Python yorumlayicisi: once proje sanal ortami, sonra sistem. */
+function pythonPath(): string {
+  const root = path.join(__dirname, '..', '..');
+  const candidates =
+    process.platform === 'win32'
+      ? [path.join(root, '.venv', 'Scripts', 'python.exe'), 'python']
+      : [path.join(root, '.venv', 'bin', 'python'), 'python3'];
+  return candidates.find((candidate) => candidate.includes('venv') && existsSync(candidate))
+    ?? (candidates[candidates.length - 1] as string);
+}
+
 /** Uretim modunda sunucu da bu surecle birlikte kalkar. */
 function startServer(): void {
   if (DEV) return;
-  const entry = path.join(__dirname, '..', '..', 'server', 'dist', 'index.js');
-  serverProcess = spawn(process.execPath, [entry], {
-    env: { ...process.env, PORT: SERVER_PORT, ELECTRON_RUN_AS_NODE: '1' },
+  const root = path.join(__dirname, '..', '..');
+  serverProcess = spawn(pythonPath(), [path.join(root, 'scripts', 'serve.py')], {
+    cwd: root,
+    env: { ...process.env, PORT: SERVER_PORT, PYTHONUNBUFFERED: '1' },
     stdio: 'inherit',
+  });
+  serverProcess.on('error', (err) => {
+    console.error('Python sunucusu baslatilamadi:', err.message);
   });
   serverProcess.on('exit', (code) => {
     if (code && code !== 0) console.error(`abi sunucusu ${code} koduyla kapandi`);

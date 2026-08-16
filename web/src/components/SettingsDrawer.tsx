@@ -2,8 +2,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { voiceEngine, type VoiceOption } from '../audio/voiceEngine';
 import { desktopBridge } from '../lib/desktop';
+import { runtime } from '../lib/runtime';
 import { store, useAbiState } from '../state/store';
-import type { PersonaIntensity, ProactiveLevel, Settings } from '../state/settings';
+import type {
+  EnginePreference,
+  PersonaIntensity,
+  ProactiveLevel,
+  Settings,
+} from '../state/settings';
 import { CloseIcon } from './Icons';
 
 const PERSONA_LABELS: Record<PersonaIntensity, string> = {
@@ -21,6 +27,7 @@ const PROACTIVE_LABELS: Record<ProactiveLevel, string> = {
 export function SettingsDrawer() {
   const state = useAbiState();
   const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [localVoices, setLocalVoices] = useState<{ id: string; label: string }[]>([]);
   const settings = state.settings;
 
   useEffect(() => {
@@ -29,6 +36,15 @@ export function SettingsDrawer() {
     load();
     // Sesler bazi tarayicilarda gecikmeli yukleniyor.
     const timer = window.setTimeout(load, 400);
+
+    // Sunucudaki yerel sesler (Piper) ayri listelenir.
+    void fetch('/api/voices')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { voices?: { id: string; label: string }[] } | null) => {
+        setLocalVoices(payload?.voices ?? []);
+      })
+      .catch(() => undefined);
+
     return () => window.clearTimeout(timer);
   }, [state.settingsOpen]);
 
@@ -60,6 +76,22 @@ export function SettingsDrawer() {
 
           <div className="drawer__body">
             <Section title="Ses">
+              <Choice
+                label="Ses motoru"
+                value={settings.voiceEngine}
+                options={
+                  [
+                    ['auto', 'Otomatik'],
+                    ['server', 'Yerel'],
+                    ['browser', 'Tarayıcı'],
+                  ] as [EnginePreference, string][]
+                }
+                onChange={(value) => {
+                  update({ voiceEngine: value });
+                  runtime.applyEnginePreferences();
+                }}
+              />
+              <p className="field__hint">Şu an: {state.debug.voice}</p>
               <Field label="Ses seçimi">
                 <select
                   value={settings.voiceId ?? ''}
@@ -70,6 +102,11 @@ export function SettingsDrawer() {
                   }}
                 >
                   <option value="">Otomatik (Türkçe erkek)</option>
+                  {localVoices.map((voice) => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.label} — yerel
+                    </option>
+                  ))}
                   {voices.map((voice) => (
                     <option key={voice.id} value={voice.id}>
                       {voice.label}
@@ -126,6 +163,22 @@ export function SettingsDrawer() {
             </Section>
 
             <Section title="Mikrofon">
+              <Choice
+                label="Tanıma motoru"
+                value={settings.sttEngine}
+                options={
+                  [
+                    ['auto', 'Otomatik'],
+                    ['server', 'Yerel'],
+                    ['browser', 'Tarayıcı'],
+                  ] as [EnginePreference, string][]
+                }
+                onChange={(value) => {
+                  update({ sttEngine: value });
+                  runtime.applyEnginePreferences();
+                }}
+              />
+              <p className="field__hint">Şu an: {state.debug.recognizer}</p>
               <Toggle
                 label="Mikrofon"
                 value={settings.micEnabled}

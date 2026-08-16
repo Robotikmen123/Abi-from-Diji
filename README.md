@@ -12,17 +12,21 @@ küçük bir durum yazısı.
 ## Hızlı başlangıç
 
 ```bash
-npm install
+npm run setup              # Python sanal ortamı + bağımlılıklar + npm paketleri
 cp .env.example .env       # GEMINI_API_KEY satırını doldur
+npm run voices             # Türkçe erkek ses + tanıma modeli (bir kez)
 npm run dev
 ```
 
 Tarayıcıdan `http://localhost:5273` adresini aç, mikrofon izni ver ve konuş.
 
-> Anahtar girmeden de açılır: ABİ o durumda yerel karakter motoruyla, kısa ve
-> karakterde repliklerle cevap verir. Zekânın açılması için Gemini anahtarı gerekir.
+> **Anahtar ve model olmadan da açılır.** Gemini anahtarı yoksa ABİ yerel karakter
+> motoruyla kısa repliklerle cevap verir; ses modeli yoksa tarayıcı sesine düşer.
+> Hiçbir durumda susmaz — sadece daha az iyi olur.
 
 **Gemini anahtarı:** <https://aistudio.google.com/apikey> (ücretsiz kotası var)
+
+Gereksinimler: Node 20+, Python 3.10+.
 
 ---
 
@@ -31,15 +35,17 @@ Tarayıcıdan `http://localhost:5273` adresini aç, mikrofon izni ver ve konuş.
 | Katman | Seçim | Neden |
 | --- | --- | --- |
 | Zekâ | **Google Gemini** (`streamGenerateContent`, SSE) | Akışkan cevap, düşük ilk-token gecikmesi |
-| Ses tanıma | Web Speech Recognition (tarayıcı) | Ücretsiz, kurulumsuz, düşük gecikme |
-| Seslendirme | Web Speech Synthesis (tarayıcı, Türkçe erkek ses) | Ücretsiz, ilk sese kadar geçen süre sunucu TTS'ten kısa |
+| Sunucu | Python · FastAPI | Yerel ses ve tanıma motorları Python ekosisteminde |
+| Seslendirme | **Piper** (yerel Türkçe erkek ses) → tarayıcı sesi | Çevrimdışı, her makinede aynı ses, fonem zamanlaması verir |
+| Ses tanıma | **faster-whisper** (yerel Türkçe) → tarayıcı tanıması | Çevrimdışı, Chrome'a bağlı değil, gürültüye dayanıklı |
 | Karakter | Prosedürel canvas emblemi | Asset yok, her çözünürlükte net, sesle doğrudan sürülüyor |
 | Görme | Gemini çoklu ortam (tek kare JPEG) | Sürekli video yerine "bakınca" kare: hem gecikme hem gizlilik |
 | Hafıza | Dosya tabanlı JSON | Bağımlılıksız, taşınabilir |
 | Masaüstü | Electron kabuğu | Overlay, mini mod, her zaman üstte |
 
-Zekâ sağlayıcısı düşerse (anahtar hatası, kota, ağ) karakter susmaz: sunucu aynı
-istek içinde yerel motora düşer ve cevabı oradan verir.
+Her katman aşağı düşebilir ve karakter yine çalışır: Gemini düşerse sunucu aynı
+istek içinde yerel motora, Piper yoksa tarayıcı sesine, Whisper yoksa tarayıcı
+tanımasına düşer. Karakter hiçbir durumda susmaz.
 
 ### Yedek sağlayıcılar
 
@@ -48,17 +54,49 @@ Gemini yoksa sırasıyla denenir: **Ollama** (local, otomatik bulunur) →
 
 ---
 
+## Yerel ses
+
+Tarayıcının Web Speech sesi işletim sistemine bağlı: bazı makinelerde hiç Türkçe
+ses yok, olanlarda kadın sesi çıkabiliyor ve ton kontrolü yok. Piper bunu çözüyor.
+
+```bash
+npm run voices                                   # fahrettin (varsayılan) + whisper small
+python scripts/fetch_models.py --voice-id tr_TR-dfki-medium
+python scripts/fetch_models.py --voice           # sadece ses
+python scripts/fetch_models.py --stt --whisper base
+```
+
+Modeller `models/` altına iner, bir kez indirilir, sonrası tamamen çevrimdışıdır.
+Üç Türkçe erkek ses var: `fahrettin` (varsayılan, en tok), `dfki`, `fettah`.
+
+### Neden lip sync daha iyi
+
+Piper sesle birlikte **fonem zamanlaması** döndürüyor (`include_alignments`):
+hangi fonemin kaç örnek sürdüğü. Ağız hareketi artık harften tahmin edilmiyor,
+modelin kendi çıkışına bağlanıyor. Halkanın genliği de tahmin değil — çalan sesin
+dalga formundan `AnalyserNode` ile okunuyor. Ses, ağız ve ışık aynı saatte.
+
+Ölçülen: konuşma sırasında ağız 14 farklı değer alıyor, araya girildiğinde
+genlik tek karede sıfırlanıyor.
+
+Ayarlardan motor seçilebilir: **Otomatik** (varsa yerel) · **Yerel** · **Tarayıcı**.
+
+---
+
 ## Ses akışı
 
 ```
-Mikrofon → VAD (anında görsel tepki) → STT
+Mikrofon → VAD (anında görsel tepki) → STT (Whisper veya tarayıcı)
                                         ↓
                           Gemini akışı (SSE, token token)
                                         ↓
-                    ilk anlamlı ifade çıkar çıkmaz → TTS
+                    ilk anlamlı ifade çıkar çıkmaz → TTS (Piper)
                                         ↓
-                       halka animasyonu + altyazı
+              fonem zamanlaması + gerçek genlik → halka + altyazı
 ```
+
+Parçalar boru hattı gibi işler: bir cümle çalarken sonraki sunucudan çekilir,
+aralarda sessizlik kalmaz.
 
 Cevabın tamamı beklenmez. Sunucu gelen token'ları konuşulabilir parçalara böler
 (`PhraseSplitter`) ve ilk parçayı bilerek kısa tutar — konuşmanın başlaması
@@ -178,13 +216,17 @@ altyazının görünürlüğünü, kontrollerin opaklığını ve geçiş süres
 
 ```
 prompts/abi-system.md      karakter tanımı
-server/                    Express + SSE
+scripts/serve.py           sunucuyu başlatır (sanal ortamı kendi bulur)
+scripts/fetch_models.py    Türkçe ses ve tanıma modellerini indirir
+server_py/abi/             FastAPI + SSE
   providers/llm/           gemini · ollama · openai · yerel yedek
+  providers/tts/           piper (yerel Türkçe erkek ses)
+  providers/stt/           faster-whisper (yerel Türkçe tanıma)
   providers/memory/        dosya tabanlı hafıza
-  util/stream.ts           duygu etiketi, hafıza/görev işaretleri, ifade bölücü
+  util/stream.py           duygu etiketi, hafıza/görev işaretleri, ifade bölücü
 web/
   src/avatar/              emblem çizimi + hareket rig'i
-  src/audio/               mikrofon/VAD · ses tanıma · seslendirme · viseme
+  src/audio/               mikrofon/VAD · tanıma · seslendirme · viseme · fonem
   src/vision/              kamera / ekran yakalama + "bak" niyeti
   src/state/               durum tablosu · ayarlar · store
   src/components/          sahne ve paneller
@@ -193,8 +235,8 @@ web/
 desktop/                   Electron kabuğu: overlay · mini · kısayollar
 ```
 
-Sağlayıcılar arayüz arkasında (`LlmProvider`, `MemoryProvider`, `TtsProvider`);
-yenisi eklemek için mevcut kodun değişmesi gerekmiyor.
+Sağlayıcılar arayüz arkasında (LLM · TTS · STT · hafıza); yenisi eklemek için
+mevcut kodun değişmesi gerekmiyor.
 
 ---
 
@@ -208,6 +250,10 @@ yenisi eklemek için mevcut kodun değişmesi gerekmiyor.
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Bulunamazsa bilinen sürümlere düşer |
 | `LLM_PROVIDER` | `auto` | `gemini` · `ollama` · `openai` · `local` |
 | `LLM_MAX_TOKENS` | `220` | Karakter kısa konuşur |
+| `TTS_PROVIDER` | `auto` | `piper` · `client` |
+| `PIPER_VOICE` | `tr_TR-fahrettin-medium` | Türkçe erkek sesler |
+| `STT_PROVIDER` | `auto` | `whisper` · `client` |
+| `WHISPER_MODEL` | `small` | `tiny` · `base` · `small` · `medium` |
 | `ABI_NAME` | `ABİ` | Karakter adı |
 | `PORT` | `8787` | Sunucu portu |
 
@@ -219,20 +265,28 @@ görünüm, gelişmiş) sağdan açılan panelde ve tarayıcıda saklanır.
 ## Komutlar
 
 ```bash
+npm run setup       # Python sanal ortamı + tüm bağımlılıklar
+npm run voices      # Türkçe ses ve tanıma modellerini indir
 npm run dev         # sunucu + arayüz
-npm run build       # ikisini de derle
+npm run build       # arayüzü derle
 npm run typecheck   # tip kontrolü
-npm start           # derlenmiş sunucu
+npm start           # sunucu (derlenmiş arayüzü de servis eder)
+npm run desktop     # Electron kabuğu
 ```
+
+`scripts/serve.py` sanal ortamı kendi bulup içine geçer; `.venv` etkinleştirmeye
+gerek yok.
 
 ---
 
 ## Bilinen sınırlar
 
-- Ses tanıma Chrome/Edge'de çalışır. Desteklenmeyen tarayıcıda `/` ile yazı girişi
-  devreye girer, karakter yine sesli cevap verir.
-- Türkçe erkek ses işletim sistemine bağlı. Sistemde Türkçe ses yoksa ayarlardan
-  seçilebilir; hiç ses yoksa karakter sessiz oynatır (altyazı ve animasyon çalışır).
+- Yerel ses ve tanıma modelleri ilk kurulumda indirilir (`npm run voices`);
+  ses ~60 MB, `whisper small` ~500 MB. İndirilmezse tarayıcı motorları devreye girer.
+- Tarayıcı tanıması yalnızca Chrome/Edge'de var. Whisper kuruluysa bu sınır kalkar.
+  Hiçbiri yoksa `/` ile yazı girişi açılır, karakter yine sesli cevap verir.
+- Whisper CPU'da çalışır; `small` modeli tipik bir dizüstünde ~1 sn gecikme ekler.
+  Daha hızlı istenirse `base` veya `tiny`.
 - Görme yalnızca Gemini ile çalışır; yerel yedek motor kareleri yok sayar.
 - Overlay modda saydamlık ve tıklama geçirgenliği pencere yöneticisine bağlıdır;
   Windows ve macOS'ta sorunsuz, bazı Linux masaüstlerinde bileşik yöneticisi gerekir.

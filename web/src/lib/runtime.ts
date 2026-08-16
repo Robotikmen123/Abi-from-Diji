@@ -1,4 +1,5 @@
 import { micEngine } from '../audio/micEngine';
+import { serverStt } from '../audio/serverStt';
 import { speechInput } from '../audio/speechRecognition';
 import { voiceEngine } from '../audio/voiceEngine';
 import { fetchHealth, streamChat, type ChatTurn } from '../net/chatStream';
@@ -39,6 +40,9 @@ class AbiRuntime {
   private speechEndedAt = 0;
   private requestSentAt = 0;
   private greeted = false;
+  /** Sunucunun bildirdigi yetenekler; ayar degisince bunlara bakilir. */
+  private serverTtsReady = false;
+  private serverSttReady = false;
 
   async boot(): Promise<void> {
     if (this.started) return;
@@ -57,6 +61,20 @@ class AbiRuntime {
     store.set({ connected: health.ok });
     if (health.llm) store.patchDebug({ provider: health.llm.id });
 
+    // Yerel ses/tanima varsa onlar kullanilir; yoksa tarayici motorlarina dusulur.
+    const prefs = store.getState().settings;
+    // 'auto': sunucuda varsa yerel. Kullanici acikca sectiyse tercihi kazanir.
+    const localTts = Boolean(health.tts?.local) && prefs.voiceEngine !== 'browser';
+    const localStt = Boolean(health.stt?.local) && prefs.sttEngine !== 'browser';
+    this.serverTtsReady = Boolean(health.tts?.local);
+    this.serverSttReady = Boolean(health.stt?.local);
+    voiceEngine.setBackend(localTts ? 'server' : 'browser');
+    serverStt.available = localStt;
+    store.patchDebug({
+      voice: health.tts?.label ?? '-',
+      recognizer: health.stt?.label ?? '-',
+    });
+
     // Acilis animasyonu 1.1 sn; karakter once beliriyor, sonra sahne aciliyor.
     window.setTimeout(() => {
       store.set({ booted: true, ui: health.ok ? 'IDLE' : 'OFFLINE' });
@@ -72,6 +90,7 @@ class AbiRuntime {
     this.abortChat?.();
     voiceEngine.stop();
     speechInput.stop();
+    serverStt.detach();
     micEngine.stop();
     captureEngine.stopAll();
     window.clearInterval(this.idleTimer);
@@ -92,8 +111,18 @@ class AbiRuntime {
     micEngine.setMuted(store.getState().micMuted);
     voiceEngine.unlock();
 
-    if (speechInput.supported && settings.conversationMode) speechInput.start();
-    else if (!speechInput.supported) {
+    // Yerel tanima varsa mikrofon akisi kaydediciyle paylasilir.
+    const stream = micEngine.mediaStream;
+    const recorderReady = serverStt.available && stream ? serverStt.attach(stream) : false;
+
+    if (recorderReady) {
+      serverStt.on({
+        onFinal: (text) => this.onTranscript(text),
+        onError: (message) => store.toast(message, 'warn'),
+      });
+    } else if (speechInput.supported && settings.conversationMode) {
+      speechInput.start();
+    } else if (!speechInput.supported) {
       store.toast('Bu tarayıcı ses tanımayı desteklemiyor. Yazarak konuşabilirsin.', 'warn', 5000);
     }
 
@@ -103,8 +132,12 @@ class AbiRuntime {
   setMuted(muted: boolean): void {
     store.set({ micMuted: muted });
     micEngine.setMuted(muted);
-    if (muted) speechInput.stop();
-    else if (speechInput.supported && store.getState().settings.conversationMode) {
+    if (muted) {
+      speechInput.stop();
+      serverStt.cancel();
+    }
+    else if (!serverStt.available && speechInput.supported &&
+      store.getState().settings.conversationMode) {
       speechInput.start();
     }
   }
@@ -123,10 +156,13 @@ class AbiRuntime {
         if (state.ui === 'IDLE' || state.ui === 'INTERRUPTED') {
           this.setUi('LISTENING');
         }
+        if (serverStt.available) serverStt.start();
       },
       onSpeechEnd: () => {
         store.patchDebug({ vad: false });
         this.speechEndedAt = performance.now();
+        // Kayit burada kapanir ve tek istekte sunucuya gider.
+        if (serverStt.available) serverStt.stop();
         const state = store.getState();
         if (state.ui !== 'LISTENING') return;
         // Tanima gelmezse ekranda asili kalmasin.
@@ -145,12 +181,7 @@ class AbiRuntime {
         store.set({ interim: text });
         if (store.getState().ui === 'IDLE') this.setUi('LISTENING');
       },
-      onFinal: (text) => {
-        store.set({ interim: '' });
-        const latency = this.speechEndedAt ? performance.now() - this.speechEndedAt : 0;
-        if (latency > 0) store.patchDebug({ sttLatency: Math.round(latency) });
-        this.handleUserSpeech(text);
-      },
+      onFinal: (text) => this.onTranscript(text),
       onError: (message) => store.toast(message, 'warn'),
     });
   }
@@ -183,6 +214,14 @@ class AbiRuntime {
   }
 
   // ---------------------------------------------------------------- konusma
+
+  /** Hangi tanima motorundan gelirse gelsin tek giris noktasi. */
+  private onTranscript(text: string): void {
+    store.set({ interim: '' });
+    const latency = this.speechEndedAt ? performance.now() - this.speechEndedAt : 0;
+    if (latency > 0) store.patchDebug({ sttLatency: Math.round(latency) });
+    this.handleUserSpeech(text);
+  }
 
   handleUserSpeech(text: string): void {
     const clean = text.trim();
@@ -371,6 +410,8 @@ class AbiRuntime {
     this.streaming = false;
     voiceEngine.stop();
     speechInput.reset();
+    // Araya girerken alinan kayit ABI'nin sesini icerir; gonderilmez.
+    serverStt.cancel();
     window.clearTimeout(this.fillerTimer);
     if (this.pendingReply) {
       store.pushHistory('abi', this.pendingReply);
@@ -447,6 +488,25 @@ class AbiRuntime {
 
   private setUi(ui: UiState): void {
     store.set({ ui });
+  }
+
+  /** Ayarlardan motor tercihi degistiginde. */
+  applyEnginePreferences(): void {
+    const { voiceEngine: votePref, sttEngine: sttPref } = store.getState().settings;
+
+    const useLocalVoice = this.serverTtsReady && votePref !== 'browser';
+    voiceEngine.setBackend(useLocalVoice ? 'server' : 'browser');
+
+    const useLocalStt = this.serverSttReady && sttPref !== 'browser';
+    serverStt.available = useLocalStt;
+    if (useLocalStt) {
+      speechInput.stop();
+      const stream = micEngine.mediaStream;
+      if (stream) serverStt.attach(stream);
+    } else {
+      serverStt.detach();
+      if (speechInput.supported && store.getState().settings.conversationMode) speechInput.start();
+    }
   }
 
   setEmotion(emotion: Emotion): void {

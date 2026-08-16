@@ -18,6 +18,8 @@ export function DebugOverlay() {
       <Row label="VAD" value={d.vad ? 'konuşma' : 'sessiz'} />
       <Row label="Sağlayıcı" value={d.provider} />
       <Row label="Görme" value={d.vision} />
+      <Row label="Ses" value={d.voice} />
+      <Row label="Tanıma" value={d.recognizer} />
       <Row label="Hafıza" value={String(state.history.length)} />
       {state.interim && <Row label="Tanıma" value={state.interim} />}
     </div>

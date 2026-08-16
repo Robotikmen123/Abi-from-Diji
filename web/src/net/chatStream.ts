@@ -135,11 +135,25 @@ function dispatch(block: string, handlers: ChatStreamHandlers): void {
   }
 }
 
-export async function fetchHealth(): Promise<{ ok: boolean; llm?: { id: string; label: string } }> {
+export interface EngineInfo {
+  id: string;
+  label: string;
+  local?: boolean;
+  reason?: string;
+}
+
+export interface Health {
+  ok: boolean;
+  llm?: EngineInfo & { vision?: boolean };
+  tts?: EngineInfo;
+  stt?: EngineInfo;
+}
+
+export async function fetchHealth(): Promise<Health> {
   try {
     const res = await fetch('/api/health', { signal: AbortSignal.timeout(4000) });
     if (!res.ok) return { ok: false };
-    return (await res.json()) as { ok: boolean; llm?: { id: string; label: string } };
+    return (await res.json()) as Health;
   } catch {
     return { ok: false };
   }

@@ -29,6 +29,11 @@ export class MicEngine {
 
   active = false;
   muted = false;
+  /** Kayit icin ayni akis paylasilir; ikinci kez izin istenmez. */
+  get mediaStream(): MediaStream | null {
+    return this.stream;
+  }
+
   /** 0..1 anlik seviye */
   level = 0;
   /** Dalga formu barlari (0..1) */

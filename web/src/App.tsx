@@ -24,7 +24,7 @@ export default function App() {
     // Gelistirme sirasinda durum makinesini disaridan surebilmek icin
     // (otomatik testler ve hata ayiklama). Uretim paketinde yer almaz.
     if (import.meta.env.DEV) {
-      (window as unknown as { __abi?: unknown }).__abi = { runtime, store };
+      (window as unknown as { __abi?: unknown }).__abi = { runtime, store, voiceEngine };
     }
     // Kayitli ses ayarlarini motora aktar.
     const { settings } = store.getState();

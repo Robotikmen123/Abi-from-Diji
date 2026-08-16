@@ -3,6 +3,15 @@ dist/
 *.tsbuildinfo
 .env
 .env.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Indirilen ses/tanima modelleri (yuzlerce MB)
+models/
+
 data/memory.json
 *.log
 .DS_Store
