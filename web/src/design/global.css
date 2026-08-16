@@ -1,0 +1,732 @@
+/* Tum degerler tokens.ts'ten uretilen degiskenlerden gelir. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-family);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  /* Karakter bir buton degil: sahnede isaretci eli gorunmez. */
+  cursor: default;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* ------------------------------------------------------------------ kabuk */
+
+.app-shell {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  /* Cok hafif merkez isigi; duz siyah sahneyi olduruyor. */
+  background:
+    radial-gradient(120% 90% at 50% 42%, var(--color-background-lift) 0%, transparent 62%),
+    var(--color-background);
+}
+
+/* ------------------------------------------------------------------ ust bar */
+
+.top-bar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: var(--z-controls);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + var(--space-lg)) var(--space-xl) var(--space-md);
+  transition: opacity var(--dur-base) var(--ease-out);
+  pointer-events: none;
+}
+
+.top-bar > * {
+  pointer-events: auto;
+}
+
+body.hide-controls .top-bar,
+body.hide-controls .privacy,
+body.hide-controls .text-input {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.app-shell--cinematic .top-bar {
+  display: none;
+}
+
+.brand {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--color-text-secondary);
+  opacity: 0.75;
+}
+
+.top-bar__actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+  opacity: 0.55;
+  cursor: pointer;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.icon-button:hover,
+.icon-button:focus-visible {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.icon-button--active {
+  opacity: 0.95;
+  color: var(--color-text-primary);
+}
+
+.icon-button:focus-visible {
+  outline: 1px solid var(--color-border-strong);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ sahne */
+
+.main-stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 10% 65% 25%;
+}
+
+.avatar-stage {
+  position: relative;
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+}
+
+.avatar-layer {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-avatar);
+  /* Altyazi alanina nefes birakmak icin karakter merkezden hafif yukarida. */
+  transform: translateY(-3%);
+}
+
+.avatar-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ambient-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: var(--z-ambient);
+  width: min(78vh, 74vw);
+  height: min(78vh, 74vw);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-glow) 42%, transparent) 0%,
+    color-mix(in srgb, var(--color-glow) 12%, transparent) 40%,
+    transparent 70%
+  );
+  filter: blur(46px);
+  will-change: opacity, transform;
+}
+
+/* ------------------------------------------------- altyazi / durum / dalga */
+
+.interaction-layer {
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-lg);
+  padding: 0 var(--space-xl) calc(env(safe-area-inset-bottom, 0px) + var(--space-xl));
+}
+
+.subtitle-layer {
+  min-height: 3.2em;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  z-index: var(--z-subtitle);
+}
+
+.subtitle {
+  --subtitle-size: 28px;
+  max-width: 780px;
+  margin: 0;
+  text-align: center;
+  font-weight: 500;
+  line-height: 1.38;
+  letter-spacing: -0.005em;
+  color: var(--color-text-primary);
+  /* Sohbet balonu yok: okunabilirlik golgeden geliyor. */
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 18px rgba(0, 0, 0, 0.65);
+  text-wrap: balance;
+}
+
+.subtitle--contrast {
+  background: rgba(6, 7, 9, 0.72);
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-control);
+  backdrop-filter: blur(8px);
+}
+
+.status-layer {
+  z-index: var(--z-status);
+  min-height: 16px;
+}
+
+.status {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 26px;
+  width: min(220px, 60vw);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.waveform--on {
+  opacity: 0.75;
+}
+
+.waveform__bar {
+  flex: 1;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-secondary);
+  transform: scaleY(0.08);
+  transform-origin: center;
+  will-change: transform;
+}
+
+/* ------------------------------------------------------------------ oyun modu */
+
+.main-stage--game {
+  grid-template-rows: 0 62% 38%;
+  position: absolute;
+  inset: auto var(--space-xl) auto auto;
+  top: var(--space-xl);
+  width: 280px;
+  height: 360px;
+  background: rgba(8, 9, 11, 0.35);
+  border-radius: var(--radius-panel);
+  backdrop-filter: blur(10px);
+}
+
+.main-stage--game .subtitle {
+  --subtitle-size: 15px;
+}
+
+.main-stage--game .waveform {
+  width: 120px;
+  height: 16px;
+}
+
+/* ------------------------------------------------------------------ gorev */
+
+.mission {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 58px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-status);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.mission__title {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+}
+
+.mission__progress {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------------------------ gizlilik */
+
+.privacy {
+  position: absolute;
+  left: var(--space-xl);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-lg));
+  z-index: var(--z-controls);
+  display: flex;
+  gap: var(--space-sm);
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.privacy__dot {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-muted);
+}
+
+/* ------------------------------------------------------------------ yazi girisi */
+
+.text-input {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-lg));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-controls);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 4px 4px 4px var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: rgba(17, 19, 24, 0.6);
+  backdrop-filter: blur(16px);
+  width: min(420px, 80vw);
+}
+
+.text-input input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+}
+
+.text-input input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.text-input button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ paneller */
+
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-drawer);
+  width: min(380px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: rgba(17, 19, 24, 0.86);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid var(--color-border);
+}
+
+.drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + var(--space-lg)) var(--space-lg) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.drawer__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg) var(--space-lg) calc(env(safe-area-inset-bottom, 0px) + var(--space-2xl));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.field__label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.field__hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  max-width: 30ch;
+}
+
+.field__value {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.field input[type='text'],
+.field select {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-secondary);
+  outline: none;
+}
+
+.field input[type='range'] {
+  width: 100%;
+  accent-color: var(--color-text-secondary);
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 23px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.switch--on {
+  background: color-mix(in srgb, var(--color-glow) 30%, transparent);
+}
+
+.switch__dot {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.switch--on .switch__dot {
+  transform: translateX(17px);
+  background: var(--color-text-primary);
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-secondary);
+}
+
+.segmented__item {
+  flex: 1;
+  padding: var(--space-sm) var(--space-xs);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.segmented__item--on {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+}
+
+.pill-button {
+  align-self: flex-start;
+  padding: var(--space-sm) var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pill-button--danger:hover {
+  border-color: rgba(201, 100, 92, 0.5);
+  color: var(--color-danger);
+}
+
+/* ------------------------------------------------------------------ gecmis */
+
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.history__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history__who {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--color-text-muted);
+}
+
+.history__text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.history__item--abi .history__text {
+  color: var(--color-text-primary);
+}
+
+.empty {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ toast */
+
+.toast-layer {
+  position: absolute;
+  right: var(--space-xl);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-xl));
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  align-items: flex-end;
+}
+
+.toast {
+  padding: var(--space-sm) var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: rgba(17, 19, 24, 0.72);
+  backdrop-filter: blur(18px);
+  color: var(--color-text-secondary);
+  font-size: 12.5px;
+  cursor: pointer;
+  max-width: 280px;
+  text-align: left;
+}
+
+.toast--warn {
+  border-color: rgba(201, 100, 92, 0.28);
+}
+
+/* ------------------------------------------------------------------ debug */
+
+.debug {
+  position: absolute;
+  top: 64px;
+  left: var(--space-xl);
+  z-index: var(--z-debug);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: rgba(8, 9, 11, 0.7);
+  backdrop-filter: blur(12px);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  min-width: 190px;
+  pointer-events: none;
+}
+
+.debug__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.debug__row span:last-child {
+  color: var(--color-text-secondary);
+}
+
+/* ------------------------------------------------------------------ acilis */
+
+.boot {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: end center;
+  padding-bottom: 22vh;
+  background: var(--color-background);
+  pointer-events: none;
+}
+
+.boot span {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--color-text-muted);
+}
+
+/* ------------------------------------------------------------------ responsive */
+
+@media (max-width: 1024px) {
+  .main-stage {
+    grid-template-rows: 8% 64% 28%;
+  }
+}
+
+@media (max-width: 640px) {
+  .main-stage {
+    grid-template-rows: 8% 60% 32%;
+  }
+
+  .subtitle {
+    --subtitle-size: 20px;
+    max-width: 90vw;
+  }
+
+  .interaction-layer {
+    padding-left: var(--space-lg);
+    padding-right: var(--space-lg);
+    gap: var(--space-md);
+  }
+
+  .top-bar {
+    padding-left: var(--space-lg);
+    padding-right: var(--space-lg);
+  }
+
+  .drawer {
+    width: 100vw;
+  }
+
+  .waveform {
+    width: min(180px, 70vw);
+    height: 20px;
+  }
+}
+
+/* Mobil yatay: karakter ve altyazi yan yana sikismasin. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .main-stage {
+    grid-template-rows: 0 68% 32%;
+  }
+
+  .subtitle {
+    --subtitle-size: 18px;
+  }
+
+  .avatar-layer {
+    transform: translateY(-1%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
