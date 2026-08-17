@@ -1,0 +1,8 @@
+# Cevrimdisi / anahtarsiz kullanim icin istege bagli paketler.
+#   npm run setup:offline
+#   npm run voices          (model indirir)
+#
+# Kurulmazsa hicbir sey bozulmaz: ses Gemini'den, tanima tarayicidan gelir.
+piper-tts>=1.3          # yerel Turkce erkek ses
+faster-whisper>=1.1     # yerel Turkce tanima
+huggingface_hub>=0.26   # model indirici

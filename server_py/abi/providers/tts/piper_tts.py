@@ -79,7 +79,7 @@ class PiperTts:
             if self._model_path() is None:
                 self._reason = (
                     f"Piper ses modeli yok ({self.voices_dir()}). "
-                    "`npm run voices` ile indirilebilir."
+                    "`npm run setup:offline && npm run voices` ile eklenebilir."
                 )
                 log.warning(self._reason)
         return self._model_path() is not None

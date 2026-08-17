@@ -98,6 +98,7 @@ Anahtarsız veya internetsiz çalışması gerekiyorsa Piper indirilebilir. Bu
 durumda fonem zamanlaması da geliyor, lip sync daha da kesin oluyor:
 
 ```bash
+npm run setup:offline                   # piper-tts + faster-whisper
 npm run voices                          # Piper Türkçe ses + whisper small
 python scripts/fetch_models.py --voice  # sadece ses (~60 MB)
 ```
@@ -289,8 +290,9 @@ görünüm, gelişmiş) sağdan açılan panelde ve tarayıcıda saklanır.
 ## Komutlar
 
 ```bash
-npm run setup       # Python sanal ortamı + tüm bağımlılıklar
-npm run voices      # Türkçe ses ve tanıma modellerini indir
+npm run setup         # Python sanal ortamı + bağımlılıklar (hafif: 5 paket)
+npm run setup:offline # isteğe bağlı: çevrimdışı ses/tanıma paketleri
+npm run voices        # isteğe bağlı: çevrimdışı modelleri indir
 npm run dev         # sunucu + arayüz
 npm run build       # arayüzü derle
 npm run typecheck   # tip kontrolü
@@ -307,8 +309,9 @@ gerek yok.
 
 - Gemini TTS her cümle için bir API çağrısı yapar; tekrar eden cümleler
   önbellekten gelir. Kotasız/çevrimdışı kullanım için Piper indirilebilir.
-- Yerel modeller isteğe bağlıdır (`npm run voices`): Piper ~60 MB,
-  `whisper small` ~500 MB. İndirilmezse tarayıcı motorları devreye girer.
+- Yerel motorlar tamamen isteğe bağlıdır ve varsayılan kurulumda **yok**:
+  `npm run setup:offline` + `npm run voices`. Kurulmazsa ses Gemini'den,
+  tanıma tarayıcıdan gelir.
 - Tarayıcı tanıması yalnızca Chrome/Edge'de var. Whisper kuruluysa bu sınır kalkar.
   Hiçbiri yoksa `/` ile yazı girişi açılır, karakter yine sesli cevap verir.
 - Whisper CPU'da çalışır; `small` modeli tipik bir dizüstünde ~1 sn gecikme ekler.

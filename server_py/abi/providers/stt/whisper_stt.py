@@ -39,7 +39,7 @@ class WhisperStt:
         try:
             import faster_whisper  # noqa: F401
         except ImportError:
-            self._reason = "faster-whisper kurulu degil (pip install faster-whisper)."
+            self._reason = "Yerel tanima kurulu degil (npm run setup:offline)."
             return False
         if not self._model_dir().is_dir():
             self._reason = (
