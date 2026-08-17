@@ -11,7 +11,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ..providers.stt.whisper_stt import whisper_stt
+from ..providers.tts.gemini_tts import gemini_tts
 from ..providers.tts.piper_tts import piper_tts
+from ..providers.tts.registry import resolve_tts, unavailable_reason
 
 log = logging.getLogger("abi.voice")
 router = APIRouter()
@@ -23,6 +25,8 @@ class TtsBody(BaseModel):
     # Duyguya gore konusma hizi; 1.0 normal.
     rate: float = 1.0
     pitch: float = 1.0
+    # Soyleyis tonunu belirler (Gemini stil yonergesi).
+    emotion: str = "IDLE"
 
 
 @router.post("/tts")
@@ -30,16 +34,24 @@ async def tts(body: TtsBody) -> JSONResponse:
     text = body.text.strip()
     if not text:
         return JSONResponse({"error": "text bos olamaz"}, status_code=400)
-    if not piper_tts.available():
-        return JSONResponse({"error": "yerel ses yok", "reason": piper_tts.reason}, status_code=503)
+    provider = resolve_tts()
+    if provider is None:
+        return JSONResponse(
+            {"error": "sunucu sesi yok", "reason": unavailable_reason()}, status_code=503
+        )
 
     try:
-        # Sentez CPU'yu bloklar; olay dongusu takilmasin diye is parcaciginda.
-        audio, phonemes = await asyncio.to_thread(
-            piper_tts.synthesize, text, voice_id=body.voice, rate=body.rate, pitch=body.pitch
-        )
+        if provider is gemini_tts:
+            audio, phonemes = await provider.synthesize(
+                text, voice_id=body.voice, rate=body.rate, emotion=body.emotion
+            )
+        else:
+            # Piper CPU'yu bloklar; olay dongusu takilmasin diye is parcaciginda.
+            audio, phonemes = await asyncio.to_thread(
+                provider.synthesize, text, voice_id=body.voice, rate=body.rate, pitch=body.pitch
+            )
     except Exception as err:
-        log.exception("piper sentezi basarisiz: %s", err)
+        log.exception("%s sentezi basarisiz: %s", provider.id, err)
         return JSONResponse({"error": "ses uretilemedi"}, status_code=500)
 
     # Ses ve fonem zamanlamasi birlikte doner: agiz hareketi tahmine degil
@@ -55,14 +67,19 @@ async def tts(body: TtsBody) -> JSONResponse:
 
 @router.get("/voices")
 async def voices() -> JSONResponse:
+    provider = resolve_tts()
+    voices: list[dict[str, str]] = []
+    if provider is gemini_tts:
+        voices = gemini_tts.available_voices()
+    elif provider is piper_tts:
+        voices = [{"id": v.id, "label": v.label} for v in piper_tts.available_voices()]
+
     return JSONResponse(
         {
-            "available": piper_tts.available(),
-            "reason": piper_tts.reason,
-            "voices": [
-                {"id": v.id, "label": v.label, "sampleRate": v.sample_rate}
-                for v in piper_tts.available_voices()
-            ],
+            "available": provider is not None,
+            "engine": provider.id if provider else "client",
+            "reason": "" if provider else unavailable_reason(),
+            "voices": voices,
         }
     )
 

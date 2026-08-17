@@ -61,7 +61,7 @@ class PiperTts:
 
     def _model_path(self, voice_id: str | None = None) -> Path | None:
         directory = self.voices_dir()
-        wanted = voice_id or config.tts.voice
+        wanted = voice_id or config.tts.piper_voice
         candidate = directory / f"{wanted}.onnx"
         if candidate.exists():
             return candidate
@@ -78,7 +78,7 @@ class PiperTts:
             self._checked = True
             if self._model_path() is None:
                 self._reason = (
-                    f"Ses modeli yok ({self.voices_dir()}). "
+                    f"Piper ses modeli yok ({self.voices_dir()}). "
                     "`npm run voices` ile indirilebilir."
                 )
                 log.warning(self._reason)

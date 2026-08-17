@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { serverVoice } from '../audio/serverVoice';
 import { voiceEngine, type VoiceOption } from '../audio/voiceEngine';
 import { desktopBridge } from '../lib/desktop';
 import { runtime } from '../lib/runtime';
@@ -101,10 +102,10 @@ export function SettingsDrawer() {
                     voiceEngine.setVoice(value);
                   }}
                 >
-                  <option value="">Otomatik (Türkçe erkek)</option>
+                  <option value="">Otomatik (kalın erkek)</option>
                   {localVoices.map((voice) => (
                     <option key={voice.id} value={voice.id}>
-                      {voice.label} — yerel
+                      {voice.label}
                     </option>
                   ))}
                   {voices.map((voice) => (
@@ -126,6 +127,9 @@ export function SettingsDrawer() {
                   voiceEngine.settings.rateScale = value;
                 }}
               />
+              <p className="field__hint">
+                Kalınlık sunucu sesinde, ton tarayıcı sesinde etkilidir.
+              </p>
               <Slider
                 label="Ton"
                 value={settings.speechPitch}
@@ -135,6 +139,17 @@ export function SettingsDrawer() {
                 onChange={(value) => {
                   update({ speechPitch: value });
                   voiceEngine.settings.pitchScale = value;
+                }}
+              />
+              <Slider
+                label="Kalınlık"
+                value={settings.voiceBass}
+                min={0}
+                max={12}
+                step={0.5}
+                onChange={(value) => {
+                  update({ voiceBass: value });
+                  serverVoice.setBassGain(value);
                 }}
               />
               <Slider

@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { serverVoice } from './audio/serverVoice';
 import { voiceEngine } from './audio/voiceEngine';
 import { CameraPreview } from './components/CameraPreview';
 import { DebugOverlay } from './components/DebugOverlay';
@@ -32,6 +33,7 @@ export default function App() {
     voiceEngine.settings.rateScale = settings.speechRate;
     voiceEngine.settings.pitchScale = settings.speechPitch;
     voiceEngine.settings.volume = settings.volume;
+    serverVoice.setBassGain(settings.voiceBass);
   }, []);
 
   // Masaustu kabugu: kayitli pencere modunu geri yukle.

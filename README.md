@@ -14,15 +14,15 @@ küçük bir durum yazısı.
 ```bash
 npm run setup              # Python sanal ortamı + bağımlılıklar + npm paketleri
 cp .env.example .env       # GEMINI_API_KEY satırını doldur
-npm run voices             # Türkçe erkek ses + tanıma modeli (bir kez)
 npm run dev
 ```
 
+Tek anahtar yeter: zekâ da ses de aynı Gemini anahtarıyla çalışır.
+
 Tarayıcıdan `http://localhost:5273` adresini aç, mikrofon izni ver ve konuş.
 
-> **Anahtar ve model olmadan da açılır.** Gemini anahtarı yoksa ABİ yerel karakter
-> motoruyla kısa repliklerle cevap verir; ses modeli yoksa tarayıcı sesine düşer.
-> Hiçbir durumda susmaz — sadece daha az iyi olur.
+> **Anahtarsız da açılır.** ABİ o durumda yerel karakter motoruyla kısa replikler
+> verir ve tarayıcı sesini kullanır. Hiçbir durumda susmaz — sadece daha az iyi olur.
 
 **Gemini anahtarı:** <https://aistudio.google.com/apikey> (ücretsiz kotası var)
 
@@ -36,7 +36,7 @@ Gereksinimler: Node 20+, Python 3.10+.
 | --- | --- | --- |
 | Zekâ | **Google Gemini** (`streamGenerateContent`, SSE) | Akışkan cevap, düşük ilk-token gecikmesi |
 | Sunucu | Python · FastAPI | Yerel ses ve tanıma motorları Python ekosisteminde |
-| Seslendirme | **Piper** (yerel Türkçe erkek ses) → tarayıcı sesi | Çevrimdışı, her makinede aynı ses, fonem zamanlaması verir |
+| Seslendirme | **Gemini TTS** (kalın erkek ses) → Piper → tarayıcı | Aynı anahtar, kurulum yok, duygu tona geçiyor |
 | Ses tanıma | **faster-whisper** (yerel Türkçe) → tarayıcı tanıması | Çevrimdışı, Chrome'a bağlı değil, gürültüye dayanıklı |
 | Karakter | Prosedürel canvas emblemi | Asset yok, her çözünürlükte net, sesle doğrudan sürülüyor |
 | Görme | Gemini çoklu ortam (tek kare JPEG) | Sürekli video yerine "bakınca" kare: hem gecikme hem gizlilik |
@@ -54,32 +54,55 @@ Gemini yoksa sırasıyla denenir: **Ollama** (local, otomatik bulunur) →
 
 ---
 
-## Yerel ses
+## Ses
 
-Tarayıcının Web Speech sesi işletim sistemine bağlı: bazı makinelerde hiç Türkçe
-ses yok, olanlarda kadın sesi çıkabiliyor ve ton kontrolü yok. Piper bunu çözüyor.
+Ses de Gemini'den geliyor — zekâyla aynı anahtar, ek kurulum yok. Varsayılan
+**Charon**: kalın ve tok bir yetişkin erkek sesi.
 
-```bash
-npm run voices                                   # fahrettin (varsayılan) + whisper small
-python scripts/fetch_models.py --voice-id tr_TR-dfki-medium
-python scripts/fetch_models.py --voice           # sadece ses
-python scripts/fetch_models.py --stt --whisper base
+### Kalınlık iki yerden geliyor
+
+**1. Stil yönergesi.** Her seslendirme isteğine metnin önüne bir söyleyiş talimatı
+ekleniyor, kullanıcıya okunmuyor:
+
+```
+Kalın, derin ve tok bir yetişkin erkek sesiyle, doğal konuşma temposunda
+sıkılmış ve sert söyle: Gel bakalım. Ne oldu?
 ```
 
-Modeller `models/` altına iner, bir kez indirilir, sonrası tamamen çevrimdışıdır.
-Üç Türkçe erkek ses var: `fahrettin` (varsayılan, en tok), `dfki`, `fettah`.
+İkinci yarısı karakterin o anki duygusundan geliyor. `[ANNOYED]` → "sıkılmış ve
+sert", `[SUSPICIOUS]` → "şüpheli, alçak sesle", `[SERIOUS]` → "ciddi ve ağır".
+Yani duygu etiketi yalnızca yüzü değil, sesin tonunu da sürüyor.
 
-### Neden lip sync daha iyi
+**2. Alçak raf filtresi.** Çıkışta 220 Hz altını yükselten bir `BiquadFilter`
+var. Ayarlardaki **Kalınlık** kaydırıcısı (0–12 dB, varsayılan 5) bunu sürüyor.
 
-Piper sesle birlikte **fonem zamanlaması** döndürüyor (`include_alignments`):
-hangi fonemin kaç örnek sürdüğü. Ağız hareketi artık harften tahmin edilmiyor,
-modelin kendi çıkışına bağlanıyor. Halkanın genliği de tahmin değil — çalan sesin
-dalga formundan `AnalyserNode` ile okunuyor. Ses, ağız ve ışık aynı saatte.
+Diğer sesler: `Algenib` (çakıllı), `Gacrux` (olgun), `Alnilam`, `Orus`.
+`ABI_VOICE` ile veya ayarlar panelinden değişir.
 
-Ölçülen: konuşma sırasında ağız 14 farklı değer alıyor, araya girildiğinde
+### Lip sync
+
+Gemini fonem zamanlaması vermiyor, ama sesin **gerçek süresi** biliniyor:
+metinden üretilen viseme dizisi o süreye yayılıyor ve anlık genlikle
+kapatılıyor — duraklamalarda ağız konuşmaya devam etmiyor. Genlik tahmin değil,
+çalan sesin dalga formundan `AnalyserNode` ile okunuyor.
+
+Ölçülen: konuşma sırasında ağız 10 farklı değer alıyor, araya girildiğinde
 genlik tek karede sıfırlanıyor.
 
-Ayarlardan motor seçilebilir: **Otomatik** (varsa yerel) · **Yerel** · **Tarayıcı**.
+Aynı cümle iki kez seslendirilmiyor: açılış replikleri ve "bir saniye" gibi
+dolgular sunucuda önbelleğe alınıyor.
+
+### Çevrimdışı yedek (isteğe bağlı)
+
+Anahtarsız veya internetsiz çalışması gerekiyorsa Piper indirilebilir. Bu
+durumda fonem zamanlaması da geliyor, lip sync daha da kesin oluyor:
+
+```bash
+npm run voices                          # Piper Türkçe ses + whisper small
+python scripts/fetch_models.py --voice  # sadece ses (~60 MB)
+```
+
+Sıra: **Gemini → Piper → tarayıcı sesi.** Ayarlardan elle de seçilebilir.
 
 ---
 
@@ -90,9 +113,9 @@ Mikrofon → VAD (anında görsel tepki) → STT (Whisper veya tarayıcı)
                                         ↓
                           Gemini akışı (SSE, token token)
                                         ↓
-                    ilk anlamlı ifade çıkar çıkmaz → TTS (Piper)
+                    ilk anlamlı ifade çıkar çıkmaz → TTS (Gemini)
                                         ↓
-              fonem zamanlaması + gerçek genlik → halka + altyazı
+                 gerçek ses süresi + genlik → halka + ağız + altyazı
 ```
 
 Parçalar boru hattı gibi işler: bir cümle çalarken sonraki sunucudan çekilir,
@@ -220,7 +243,7 @@ scripts/serve.py           sunucuyu başlatır (sanal ortamı kendi bulur)
 scripts/fetch_models.py    Türkçe ses ve tanıma modellerini indirir
 server_py/abi/             FastAPI + SSE
   providers/llm/           gemini · ollama · openai · yerel yedek
-  providers/tts/           piper (yerel Türkçe erkek ses)
+  providers/tts/           gemini (kalın erkek ses) · piper (çevrimdışı yedek)
   providers/stt/           faster-whisper (yerel Türkçe tanıma)
   providers/memory/        dosya tabanlı hafıza
   util/stream.py           duygu etiketi, hafıza/görev işaretleri, ifade bölücü
@@ -250,8 +273,9 @@ mevcut kodun değişmesi gerekmiyor.
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Bulunamazsa bilinen sürümlere düşer |
 | `LLM_PROVIDER` | `auto` | `gemini` · `ollama` · `openai` · `local` |
 | `LLM_MAX_TOKENS` | `220` | Karakter kısa konuşur |
-| `TTS_PROVIDER` | `auto` | `piper` · `client` |
-| `PIPER_VOICE` | `tr_TR-fahrettin-medium` | Türkçe erkek sesler |
+| `TTS_PROVIDER` | `auto` | `gemini` · `piper` · `client` |
+| `ABI_VOICE` | `Charon` | Kalın erkek sesler: `Algenib` · `Gacrux` · `Alnilam` · `Orus` |
+| `PIPER_VOICE` | `tr_TR-fahrettin-medium` | Çevrimdışı yedek |
 | `STT_PROVIDER` | `auto` | `whisper` · `client` |
 | `WHISPER_MODEL` | `small` | `tiny` · `base` · `small` · `medium` |
 | `ABI_NAME` | `ABİ` | Karakter adı |
@@ -281,8 +305,10 @@ gerek yok.
 
 ## Bilinen sınırlar
 
-- Yerel ses ve tanıma modelleri ilk kurulumda indirilir (`npm run voices`);
-  ses ~60 MB, `whisper small` ~500 MB. İndirilmezse tarayıcı motorları devreye girer.
+- Gemini TTS her cümle için bir API çağrısı yapar; tekrar eden cümleler
+  önbellekten gelir. Kotasız/çevrimdışı kullanım için Piper indirilebilir.
+- Yerel modeller isteğe bağlıdır (`npm run voices`): Piper ~60 MB,
+  `whisper small` ~500 MB. İndirilmezse tarayıcı motorları devreye girer.
 - Tarayıcı tanıması yalnızca Chrome/Edge'de var. Whisper kuruluysa bu sınır kalkar.
   Hiçbiri yoksa `/` ile yazı girişi açılır, karakter yine sesli cevap verir.
 - Whisper CPU'da çalışır; `small` modeli tipik bir dizüstünde ~1 sn gecikme ekler.

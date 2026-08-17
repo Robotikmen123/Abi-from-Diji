@@ -8,6 +8,8 @@ export interface Settings {
   /** Yerel (Piper) ses mi tarayici sesi mi. 'auto': sunucuda varsa yerel. */
   voiceEngine: EnginePreference;
   voiceId: string | null;
+  /** Bas yukseltme (dB). Sesin "kalinligi". */
+  voiceBass: number;
   speechRate: number;
   speechPitch: number;
   volume: number;
@@ -58,6 +60,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   voiceEngine: 'auto',
   voiceId: null,
+  voiceBass: 5,
   speechRate: 1,
   speechPitch: 1,
   volume: 1,

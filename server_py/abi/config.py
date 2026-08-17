@@ -63,10 +63,18 @@ class OpenAiConfig:
 
 @dataclass(frozen=True)
 class TtsConfig:
-    # auto: model varsa Piper, yoksa tarayici sesi
+    # auto: Gemini anahtari varsa Gemini, yoksa Piper modeli, o da yoksa tarayici
     provider: str = field(default_factory=lambda: _env("TTS_PROVIDER", "auto"))
+    # Gemini seslendirme modeli ve sesi
+    gemini_model: str = field(
+        default_factory=lambda: _env("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
+    )
     voices_dir: Path = field(default_factory=lambda: Path(_env("PIPER_VOICES_DIR", str(ROOT / "models" / "piper"))))
-    voice: str = field(default_factory=lambda: _env("PIPER_VOICE", "tr_TR-fahrettin-medium"))
+    # Gemini sesi (Charon = kalin, tok) veya Piper model adi
+    voice: str = field(default_factory=lambda: _env("ABI_VOICE", "Charon"))
+    piper_voice: str = field(
+        default_factory=lambda: _env("PIPER_VOICE", "tr_TR-fahrettin-medium")
+    )
     # Piper hiz carpani (1.0 = normal). Duygulara gore calisma aninda oynatilir.
     length_scale: float = field(default_factory=lambda: _float("PIPER_LENGTH_SCALE", 1.0))
     noise_scale: float = field(default_factory=lambda: _float("PIPER_NOISE_SCALE", 0.667))

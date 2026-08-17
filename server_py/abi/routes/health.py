@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from ..config import config
 from ..providers.llm.registry import resolve_llm
 from ..providers.stt.whisper_stt import whisper_stt
-from ..providers.tts.piper_tts import piper_tts
+from ..providers.tts.registry import resolve_tts, unavailable_reason
 
 router = APIRouter()
 
@@ -15,18 +15,18 @@ router = APIRouter()
 @router.get("/health")
 async def health() -> dict:
     provider = await resolve_llm()
-    tts_ready = piper_tts.available()
+    tts_provider = resolve_tts()
     stt_ready = whisper_stt.available()
     return {
         "ok": True,
         "character": config.character_name,
         "llm": {"id": provider.id, "label": provider.label, "vision": bool(provider.vision)},
         "tts": {
-            # Yerel ses yoksa istemci tarayici sesine doner.
-            "id": "piper" if tts_ready else "client",
-            "label": piper_tts.label if tts_ready else "Tarayıcı sesi (Web Speech)",
-            "local": tts_ready,
-            "reason": "" if tts_ready else piper_tts.reason,
+            # Sunucu sesi yoksa istemci tarayici sesine doner.
+            "id": tts_provider.id if tts_provider else "client",
+            "label": tts_provider.label if tts_provider else "Tarayıcı sesi (Web Speech)",
+            "local": tts_provider is not None,
+            "reason": "" if tts_provider else unavailable_reason(),
         },
         "stt": {
             "id": "whisper" if stt_ready else "client",

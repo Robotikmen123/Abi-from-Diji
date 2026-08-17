@@ -272,7 +272,7 @@ export class VoiceEngine {
     const pending =
       this.prefetchFor === item.index && this.prefetch
         ? this.prefetch
-        : serverVoice.fetchClip(item.text, rate, this.preferredVoiceId);
+        : serverVoice.fetchClip(item.text, rate, this.preferredVoiceId, item.emotion);
     this.prefetch = null;
     this.prefetchFor = -1;
 
@@ -303,7 +303,12 @@ export class VoiceEngine {
       const nextProfile = profileFor(next.emotion);
       const nextRate = clamp(wpmToRate(nextProfile.wpm) * this.settings.rateScale, 0.5, 2);
       this.prefetchFor = next.index;
-      this.prefetch = serverVoice.fetchClip(next.text, nextRate, this.preferredVoiceId);
+      this.prefetch = serverVoice.fetchClip(
+        next.text,
+        nextRate,
+        this.preferredVoiceId,
+        next.emotion,
+      );
     }
 
     serverVoice.play(clip, this.settings.volume, () => {

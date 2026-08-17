@@ -1,17 +1,24 @@
 import { PhonemeTrack, type PhonemeStep } from './phonemeTrack';
+import { VisemeTrack } from './visemes';
 
 export interface ServerClip {
   buffer: AudioBuffer;
+  /** Saglayici fonem zamanlamasi veriyorsa (Piper). */
   track: PhonemeTrack;
+  /** Vermiyorsa (Gemini): metinden uretilen viseme dizisi, ses suresine yayilir. */
+  fallback: VisemeTrack | null;
 }
 
 /**
- * Sunucudan gelen sesin calinmasi (Piper).
+ * Sunucudan gelen sesin calinmasi.
  *
- * Tarayici sentezine gore uc kazanc:
+ * Tarayici sentezine gore kazanclar:
  *  - ses her makinede ayni (isletim sistemine bagli degil)
  *  - genlik gercek ses dalgasindan okunuyor, tahmin edilmiyor
- *  - agiz hareketi modelin kendi fonem zamanlamasina bagli
+ *  - sesin gercek suresi bilindigi icin agiz dizisi ona yayilabiliyor
+ *
+ * Cikisa alcak raf filtresi takili: karakterin sesi "kalin" istendigi icin
+ * bas bolgesi yukseltiliyor. Deger ayarlardan degistirilebilir.
  */
 export class ServerVoice {
   private context: AudioContext | null = null;
@@ -20,8 +27,14 @@ export class ServerVoice {
   private source: AudioBufferSourceNode | null = null;
   private data: Uint8Array<ArrayBuffer> | null = null;
 
+  private bass: BiquadFilterNode | null = null;
   private clipStartedAt = 0;
+  private clipDuration = 0;
   private track: PhonemeTrack | null = null;
+  private fallback: VisemeTrack | null = null;
+
+  /** Bas yukseltme (dB). Sesin kalinligi buradan ayarlanir. */
+  bassGain = 5;
 
   /** Sunucu yerel sesi bildirdi mi? */
   available = false;
@@ -38,8 +51,16 @@ export class ServerVoice {
     analyser.smoothingTimeConstant = 0.6;
     const gain = context.createGain();
 
-    gain.connect(analyser);
+    // Alcak raf: 220 Hz altini yukseltir, tok/kalin bir ton verir.
+    const bass = context.createBiquadFilter();
+    bass.type = 'lowshelf';
+    bass.frequency.value = 220;
+    bass.gain.value = this.bassGain;
+
+    gain.connect(bass);
+    bass.connect(analyser);
     analyser.connect(context.destination);
+    this.bass = bass;
 
     this.context = context;
     this.analyser = analyser;
@@ -53,15 +74,25 @@ export class ServerVoice {
     if (context.state === 'suspended') await context.resume().catch(() => undefined);
   }
 
+  setBassGain(db: number): void {
+    this.bassGain = db;
+    if (this.bass) this.bass.gain.value = db;
+  }
+
   /** Metni sunucuda sentezleyip caliniabilir hale getirir. */
-  async fetchClip(text: string, rate: number, voice: string | null): Promise<ServerClip | null> {
+  async fetchClip(
+    text: string,
+    rate: number,
+    voice: string | null,
+    emotion: string,
+  ): Promise<ServerClip | null> {
     const context = this.ensureContext();
     let response: Response;
     try {
       response = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, rate, voice }),
+        body: JSON.stringify({ text, rate, voice, emotion }),
       });
     } catch {
       return null;
@@ -83,7 +114,9 @@ export class ServerVoice {
     } catch {
       return null;
     }
-    return { buffer, track: new PhonemeTrack(payload.phonemes ?? []) };
+    const track = new PhonemeTrack(payload.phonemes ?? []);
+    // Fonem zamanlamasi gelmediyse metinden uret; sesin gercek suresine yayilacak.
+    return { buffer, track, fallback: track.empty ? new VisemeTrack(text) : null };
   }
 
   /** Klibi calar; bittiginde onEnded tetiklenir. */
@@ -106,6 +139,8 @@ export class ServerVoice {
 
     this.source = source;
     this.track = clip.track;
+    this.fallback = clip.fallback;
+    this.clipDuration = clip.buffer.duration;
     this.clipStartedAt = context.currentTime;
     source.start();
   }
@@ -114,6 +149,7 @@ export class ServerVoice {
   stop(): void {
     this.stopSource();
     this.track = null;
+    this.fallback = null;
   }
 
   private stopSource(): void {
@@ -133,10 +169,29 @@ export class ServerVoice {
     return this.source !== null;
   }
 
-  /** Ses saatine gore agiz sekli (fonem zamanlamasindan). */
+  /**
+   * Ses saatine gore agiz sekli.
+   *
+   * Fonem zamanlamasi varsa dogrudan ondan; yoksa metin dizisi sesin gercek
+   * suresine yayilir ve anlik genlikle kapatilir — boylece duraklamalarda
+   * agiz konusmaya devam etmez.
+   */
   mouthAt(): ReturnType<PhonemeTrack['sample']> | null {
-    if (!this.track || !this.context || this.track.empty) return null;
-    return this.track.sample(this.context.currentTime - this.clipStartedAt);
+    if (!this.context) return null;
+    const elapsed = this.context.currentTime - this.clipStartedAt;
+
+    if (this.track && !this.track.empty) return this.track.sample(elapsed);
+    if (!this.fallback || this.clipDuration <= 0) return null;
+
+    const shape = this.fallback.sample(elapsed / this.clipDuration);
+    const gate = Math.min(1, this.amplitude() * 1.6);
+    return {
+      open: shape.open * gate,
+      wide: shape.wide * gate,
+      round: shape.round * gate,
+      teeth: shape.teeth * gate,
+      press: shape.press,
+    };
   }
 
   /** Gercek dalga formundan RMS genligi (0..1). */

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import config
 from .providers.llm.registry import resolve_llm
 from .providers.stt.whisper_stt import whisper_stt
-from .providers.tts.piper_tts import piper_tts
+from .providers.tts.registry import resolve_tts, unavailable_reason
 from .routes import chat, health, memory, voice
 
 logging.basicConfig(
@@ -46,10 +46,11 @@ async def announce() -> None:
         log.warning("GEMINI_API_KEY yok — karakter yerel yedek motorla calisiyor.")
         log.warning("Zeka icin .env dosyasina GEMINI_API_KEY ekleyin.")
 
-    if piper_tts.available():
-        log.info("Ses: %s", piper_tts.label)
+    tts = resolve_tts()
+    if tts is not None:
+        log.info("Ses: %s", tts.label)
     else:
-        log.warning("Ses: tarayici sesi — %s", piper_tts.reason or "yerel ses kapali")
+        log.warning("Ses: tarayici sesi — %s", unavailable_reason())
 
     if whisper_stt.available():
         log.info("Tanima: %s", whisper_stt.label)
